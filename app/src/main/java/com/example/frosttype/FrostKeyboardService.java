@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.ColorDrawable;
 import android.inputmethodservice.InputMethodService;
 import android.os.Build;
 import android.view.Gravity;
@@ -66,7 +67,7 @@ public final class FrostKeyboardService extends InputMethodService {
         } else blurAvailable = false;
         Window win = getWindow() == null ? null : getWindow().getWindow();
         if (win != null) {
-            win.setBackgroundDrawable(panelDrawable(blurAvailable));
+            win.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
             if (Build.VERSION.SDK_INT >= 31) {
                 win.setBackgroundBlurRadius(blurAvailable ? dp(110) : 0);
             }
@@ -76,18 +77,19 @@ public final class FrostKeyboardService extends InputMethodService {
 
     @Override public void onWindowShown() {
         super.onWindowShown();
-        setCandidatesViewShown(true);
         updateGlass();
     }
 
-    // The regular input view typically causes apps to resize, leaving a solid blank
-    // area below the app rather than actual content behind a transparent keyboard.
-    // Put the key area in the candidates view instead, which doesn't resize the app.
+    // A real input view is required for the keys to be laid out on One UI.
     @Override public View onCreateInputView() {
-        return null;
+        try {
+            return FrostGlassViewFactory.create(this);
+        } catch (RuntimeException e) {
+            return createNativeFallback();
+        }
     }
 
-    @Override public View onCreateCandidatesView() {
+    private View createNativeFallback() {
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(6), dp(18), dp(6), dp(11));
@@ -106,9 +108,11 @@ public final class FrostKeyboardService extends InputMethodService {
 
     @Override public void onStartInputView(EditorInfo info, boolean restarting) {
         super.onStartInputView(info, restarting);
-        setCandidatesViewShown(true);
+        setCandidatesViewShown(false);
         updateGlass();
     }
+
+    public void pressKey(String key) { press(key); }
 
     @Override public void onStartInput(EditorInfo info, boolean restarting) {
         super.onStartInput(info, restarting);

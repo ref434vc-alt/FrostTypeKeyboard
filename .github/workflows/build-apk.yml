@@ -24,11 +24,11 @@ jobs:
         with:
           packages: 'platform-tools'
       - name: Install Android SDK platform
-        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
-      - name: Install Gradle 8.9
+        run: sdkmanager 'platforms;android-37' 'build-tools;37.0.0'
+      - name: Install Gradle 8.13
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.9'
+          gradle-version: '8.13'
       - name: Build APK
         run: gradle --no-daemon :app:assembleDebug
       - name: Verify APK exists

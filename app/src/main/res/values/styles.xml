@@ -2,7 +2,7 @@
 <resources>
     <style name="Theme.FrostTypeIME" parent="@android:style/Theme.Material.InputMethod">
         <item name="android:windowIsTranslucent">true</item>
-        <item name="android:windowIsFloating">true</item>
+        <item name="android:windowIsFloating">false</item>
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:backgroundDimEnabled">false</item>
         <item name="android:imeFullscreenBackground">@android:color/transparent</item>
