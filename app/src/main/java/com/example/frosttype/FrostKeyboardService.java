@@ -28,6 +28,11 @@ public final class FrostKeyboardService extends InputMethodService {
     private boolean blurAvailable = false;
     private LinearLayout root;
 
+    // IME theme must be applied before InputMethodService.onCreate().
+    public FrostKeyboardService() {
+        setTheme(R.style.Theme_FrostTypeIME);
+    }
+
     private int dp(float px) {
         return (int)(px * getResources().getDisplayMetrics().density + .5f);
     }
@@ -35,12 +40,14 @@ public final class FrostKeyboardService extends InputMethodService {
     // Gradients, edge highlights, and transparency mimic liquid glass.
     // Android only blurs the app behind the keyboard if it permits cross-window blur here.
     private GradientDrawable panelDrawable(boolean blur) {
+        // Keep the IME's window light enough for the actual app to show through.
+        // No opaque fallback: if Android disables blur, it stays visibly transparent.
         GradientDrawable d = new GradientDrawable(
             GradientDrawable.Orientation.TOP_BOTTOM,
-            blur ? new int[]{0x67F7FBFF, 0x48B5D9FF, 0x76E0F0FF}
-                 : new int[]{0xEBD9E8FD, 0xD5AFCFEB, 0xE9DCEFFF});
-        d.setCornerRadius(dp(28));
-        d.setStroke(dp(1), PANEL_STROKE);
+            blur ? new int[]{0x4CF4FAFF, 0x24A5D4FE, 0x37DDEFFF}
+                 : new int[]{0x53F4FAFF, 0x2FB4DFFF, 0x43EAF4FF});
+        d.setCornerRadius(dp(25));
+        d.setStroke(dp(1), 0x50FFFFFF);
         return d;
     }
 
@@ -64,18 +71,23 @@ public final class FrostKeyboardService extends InputMethodService {
                 win.setBackgroundBlurRadius(blurAvailable ? dp(110) : 0);
             }
         }
-        if (root != null) {
-            // Keep this layer translucent rather than covering the blur with opaque white.
-            root.setBackground(panelDrawable(blurAvailable));
-        }
+        if (root != null) root.setBackgroundColor(Color.TRANSPARENT);
     }
 
     @Override public void onWindowShown() {
         super.onWindowShown();
+        setCandidatesViewShown(true);
         updateGlass();
     }
 
+    // The regular input view typically causes apps to resize, leaving a solid blank
+    // area below the app rather than actual content behind a transparent keyboard.
+    // Put the key area in the candidates view instead, which doesn't resize the app.
     @Override public View onCreateInputView() {
+        return null;
+    }
+
+    @Override public View onCreateCandidatesView() {
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(6), dp(18), dp(6), dp(11));
@@ -83,8 +95,19 @@ public final class FrostKeyboardService extends InputMethodService {
         View clearHeader = new View(this);
         root.addView(clearHeader, new LinearLayout.LayoutParams(-1, dp(28)));
         rebuildRows();
+        root.setBackgroundColor(Color.TRANSPARENT);
         updateGlass();
         return root;
+    }
+
+    @Override public boolean onEvaluateFullscreenMode() {
+        return false;
+    }
+
+    @Override public void onStartInputView(EditorInfo info, boolean restarting) {
+        super.onStartInputView(info, restarting);
+        setCandidatesViewShown(true);
+        updateGlass();
     }
 
     @Override public void onStartInput(EditorInfo info, boolean restarting) {

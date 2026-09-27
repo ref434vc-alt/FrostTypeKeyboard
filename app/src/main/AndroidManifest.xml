@@ -15,6 +15,7 @@
             </intent-filter>
         </activity>
         <service android:name=".FrostKeyboardService"
+            android:theme="@style/Theme.FrostTypeIME"
             android:exported="true"
             android:label="FrostType Glass Keyboard"
             android:permission="android.permission.BIND_INPUT_METHOD">

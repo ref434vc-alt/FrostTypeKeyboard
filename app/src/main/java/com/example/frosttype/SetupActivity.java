@@ -40,7 +40,8 @@ public final class SetupActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(24), dp(32), dp(24), dp(24));
-        root.setBackgroundColor(0xFFE3E9F2);
+        root.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                new int[]{0xFF72C2F4, 0xFF9075CD, 0xFFF5B9D3}));
         TextView title = new TextView(this);
         title.setText("FrostType");
         title.setTextColor(0xFF24374E);
