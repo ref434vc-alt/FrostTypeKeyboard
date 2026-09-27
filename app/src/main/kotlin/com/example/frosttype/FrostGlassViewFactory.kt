@@ -64,6 +64,14 @@ object FrostGlassViewFactory {
     fun create(service: FrostKeyboardService): View {
         val view = ComposeView(service)
         val owner = InputComposeOwner()
+        // The IME's WindowRecomposer searches the window decor, not only the
+        // ComposeView. Missing decor owners can crash on first keyboard open.
+        val decor = service.window?.window?.decorView
+        if (decor != null) {
+            decor.setViewTreeLifecycleOwner(owner)
+            decor.setViewTreeViewModelStoreOwner(owner)
+            decor.setViewTreeSavedStateRegistryOwner(owner)
+        }
         view.setViewTreeLifecycleOwner(owner)
         view.setViewTreeViewModelStoreOwner(owner)
         view.setViewTreeSavedStateRegistryOwner(owner)
