@@ -7,6 +7,8 @@ import android.graphics.drawable.GradientDrawable;
 import android.inputmethodservice.InputMethodService;
 import android.os.Build;
 import android.view.Gravity;
+import android.view.HapticFeedbackConstants;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
@@ -18,11 +20,9 @@ import android.widget.TextView;
 /** English QWERTY offline experimental glass keyboard. */
 public final class FrostKeyboardService extends InputMethodService {
     private static final int DARK_TEXT = 0xFF353841;
-    private static final int MILK_KEY = 0xEEFFFFFF;
-    private static final int SPECIAL_KEY = 0xD2B2B7C1;
-    private static final int BLUE_KEY = 0xFF2975DC;
-    private static final int GLASS = 0xBAE5E5EB;
-    private static final int FALLBACK = 0xFFE3E2E8;
+    private static final int SPECIAL_TEXT = 0xFF31445D;
+    private static final int PANEL_STROKE = 0x7AFFFFFF;
+    private static final int KEY_STROKE = 0x99FFFFFF;
     private boolean shift = false;
     private boolean symbols = false;
     private boolean blurAvailable = false;
@@ -32,28 +32,41 @@ public final class FrostKeyboardService extends InputMethodService {
         return (int)(px * getResources().getDisplayMetrics().density + .5f);
     }
 
-    private GradientDrawable rounded(int color, int radiusDp, int borderColor) {
-        GradientDrawable d = new GradientDrawable();
-        d.setColor(color);
-        d.setCornerRadius(dp(radiusDp));
-        d.setStroke(dp(1), borderColor);
+    // Gradients, edge highlights, and transparency mimic liquid glass.
+    // Android only blurs the app behind the keyboard if it permits cross-window blur here.
+    private GradientDrawable panelDrawable(boolean blur) {
+        GradientDrawable d = new GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            blur ? new int[]{0x67F7FBFF, 0x48B5D9FF, 0x76E0F0FF}
+                 : new int[]{0xEBD9E8FD, 0xD5AFCFEB, 0xE9DCEFFF});
+        d.setCornerRadius(dp(28));
+        d.setStroke(dp(1), PANEL_STROKE);
+        return d;
+    }
+
+    private GradientDrawable keyDrawable(int topColor, int bottomColor, int border) {
+        GradientDrawable d = new GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM, new int[]{topColor, bottomColor});
+        d.setCornerRadius(dp(14));
+        d.setStroke(dp(1), border);
         return d;
     }
 
     private void updateGlass() {
         if (Build.VERSION.SDK_INT >= 31) {
-            WindowManager wm = (WindowManager)getSystemService(Context.WINDOW_SERVICE);
+            WindowManager wm = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
             blurAvailable = wm != null && wm.isCrossWindowBlurEnabled();
         } else blurAvailable = false;
         Window win = getWindow() == null ? null : getWindow().getWindow();
         if (win != null) {
-            win.setBackgroundDrawable(rounded(blurAvailable ? GLASS : FALLBACK, 28, 0x55FFFFFF));
+            win.setBackgroundDrawable(panelDrawable(blurAvailable));
             if (Build.VERSION.SDK_INT >= 31) {
-                win.setBackgroundBlurRadius(blurAvailable ? dp(72) : 0);
+                win.setBackgroundBlurRadius(blurAvailable ? dp(110) : 0);
             }
         }
         if (root != null) {
-            root.setBackground(rounded(blurAvailable ? GLASS : FALLBACK, 28, 0x66FFFFFF));
+            // Keep this layer translucent rather than covering the blur with opaque white.
+            root.setBackground(panelDrawable(blurAvailable));
         }
     }
 
@@ -65,10 +78,10 @@ public final class FrostKeyboardService extends InputMethodService {
     @Override public View onCreateInputView() {
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(5), dp(17), dp(5), dp(10));
+        root.setPadding(dp(6), dp(18), dp(6), dp(11));
         root.setClipToPadding(false);
         View clearHeader = new View(this);
-        root.addView(clearHeader, new LinearLayout.LayoutParams(-1, dp(33)));
+        root.addView(clearHeader, new LinearLayout.LayoutParams(-1, dp(28)));
         rebuildRows();
         updateGlass();
         return root;
@@ -105,8 +118,7 @@ public final class FrostKeyboardService extends InputMethodService {
         row.setLayoutParams(rowParams);
         for (String label : labels) {
             boolean special = hasSpecials && (label.equals("⇧") || label.equals("⌫") || label.equals("ABC"));
-            addKey(row, label, special ? 1.52f : 1f,
-                    special ? SPECIAL_KEY : MILK_KEY, DARK_TEXT, false);
+            addKey(row, label, special ? 1.52f : 1f, special, false);
         }
         root.addView(row);
     }
@@ -118,28 +130,72 @@ public final class FrostKeyboardService extends InputMethodService {
         p.topMargin = dp(1);
         p.bottomMargin = dp(5);
         row.setLayoutParams(p);
-        addKey(row, symbols ? "ABC" : "123", 1.45f, SPECIAL_KEY, DARK_TEXT, false);
-        addKey(row, "space", 4.2f, MILK_KEY, DARK_TEXT, false);
-        addKey(row, "➜", 1.45f, BLUE_KEY, Color.WHITE, true);
+        addKey(row, symbols ? "ABC" : "123", 1.45f, true, false);
+        addKey(row, "space", 4.2f, false, false);
+        addKey(row, "➜", 1.45f, false, true);
         root.addView(row);
     }
 
-    private void addKey(LinearLayout row, String label, float weight, int color, int textColor, boolean enterKey) {
-        TextView key = new TextView(this);
+    // Pressed keycaps dip, darken, contract, and generate native keyboard haptics.
+    private void addKey(LinearLayout row, String label, float weight, boolean special, boolean enterKey) {
+        final TextView key = new TextView(this);
         String rendered = (shift && label.length() == 1 && Character.isLetter(label.charAt(0)))
                 ? label.toUpperCase(java.util.Locale.ROOT) : label;
         key.setText(rendered);
         key.setTextSize(label.equals("space") ? 12 : enterKey ? 31 : label.equals("⇧") || label.equals("⌫") ? 25 : 23);
-        key.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
-        key.setTextColor(textColor);
+        key.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        key.setTextColor(enterKey ? Color.WHITE : special ? SPECIAL_TEXT : DARK_TEXT);
         key.setGravity(Gravity.CENTER);
-        key.setBackground(rounded(color, 9, 0x33FFFFFF));
-        key.setElevation(dp(1.2f));
+
+        final GradientDrawable normalBackground;
+        final GradientDrawable pressedBackground;
+        if (enterKey) {
+            normalBackground = keyDrawable(0xFF72B6FF, 0xED2B78E7, 0xA0C4E7FF);
+            pressedBackground = keyDrawable(0xFF387BD9, 0xFF1550AD, 0xC0E5F5FF);
+        } else if (special) {
+            normalBackground = keyDrawable(0xD2DBEAFE, 0x91B9D3EF, 0x88F3FBFF);
+            pressedBackground = keyDrawable(0xE0B3CDEB, 0xB67C9EC8, 0xAFFBFFFF);
+        } else {
+            normalBackground = keyDrawable(0xD9FFFFFF, 0x8DD4E7FA, KEY_STROKE);
+            pressedBackground = keyDrawable(0xE6ACD3FA, 0xB879B1EA, 0xBBFFFFFF);
+        }
+        key.setBackground(normalBackground);
+        key.setElevation(dp(2.6f));
+        key.setHapticFeedbackEnabled(true);
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -1, weight);
         p.leftMargin = dp(2);
         p.rightMargin = dp(2);
         row.addView(key, p);
         key.setOnClickListener(v -> press(label));
+        key.setOnTouchListener((v, event) -> {
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    key.animate().cancel();
+                    key.setBackground(pressedBackground);
+                    key.setScaleX(.94f);
+                    key.setScaleY(.94f);
+                    key.setTranslationY(dp(2.5f));
+                    key.setElevation(dp(.4f));
+                    key.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+                    return true;
+                case MotionEvent.ACTION_UP:
+                    key.setBackground(normalBackground);
+                    key.animate().scaleX(1f).scaleY(1f).translationY(0).setDuration(95).start();
+                    key.setElevation(dp(2.6f));
+                    if (event.getX() >= 0 && event.getX() < key.getWidth()
+                            && event.getY() >= 0 && event.getY() < key.getHeight()) {
+                        v.performClick();
+                    }
+                    return true;
+                case MotionEvent.ACTION_CANCEL:
+                    key.setBackground(normalBackground);
+                    key.animate().scaleX(1f).scaleY(1f).translationY(0).setDuration(95).start();
+                    key.setElevation(dp(2.6f));
+                    return true;
+                default:
+                    return true;
+            }
+        });
     }
 
     private void press(String key) {
