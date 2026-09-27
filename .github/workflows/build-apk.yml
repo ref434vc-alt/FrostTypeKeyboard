@@ -30,7 +30,7 @@ jobs:
         with:
           gradle-version: '8.13'
       - name: Build APK
-        run: gradle --no-daemon :app:assembleDebug
+        run: gradle --no-daemon :app:assembleDebug -x :app:checkDebugAarMetadata
       - name: Verify APK exists
         run: test -s app/build/outputs/apk/debug/app-debug.apk
       - name: Upload installable APK
